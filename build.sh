@@ -36,6 +36,7 @@ trap '[[ ! -d "$scratch" ]] || /bin/rm -R -- "$scratch"' EXIT
 /bin/mkdir -p "$app/Contents/MacOS" "$payload/licenses" "$scratch/InstallerIcon.iconset"
 /usr/bin/install -m 0644 "$root/installer/Info.plist" "$app/Contents/Info.plist"
 /usr/bin/install -m 0644 "$root/README.md" "$payload/README.md"
+/usr/bin/install -m 0644 "$root/LICENSE" "$payload/LICENSE"
 /usr/bin/install -m 0644 "$root/bridge/install.sh" "$root/bridge/service.sh" "$payload"
 /usr/bin/install -m 0644 "$root/licenses/"*.txt "$payload/licenses"
 

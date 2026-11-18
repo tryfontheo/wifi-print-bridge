@@ -574,7 +574,7 @@ private final class InstallerWindow: NSObject, NSApplicationDelegate, NSWindowDe
             return
         }
         setBusy(true)
-        status.stringValue = "Waiting for macOS approval, then checking the printer over Ethernet…"
+        status.stringValue = "Waiting for macOS approval, then checking the printer and installing the bridge…"
         status.textColor = .secondaryLabelColor
         logScroll.isHidden = true
         resize()
@@ -638,7 +638,7 @@ private final class InstallerWindow: NSObject, NSApplicationDelegate, NSWindowDe
             installButton.title = "Done"
             window.makeFirstResponder(installButton)
         case .failed(let details):
-            status.stringValue = "Installation could not finish. Check the details and review the network settings."
+            status.stringValue = "Installation could not finish. See the details below."
             status.textColor = .systemRed
             log.string = details.isEmpty ? "The installer did not return any details." : details
             logScroll.isHidden = false

@@ -347,18 +347,63 @@ write_plist() {
 EOF
 }
 
-stop_service() {
-    if /bin/launchctl print "system/$LABEL" >/dev/null 2>&1; then
-        /bin/launchctl bootout "system/$LABEL" || return 1
-        if /bin/launchctl print "system/$LABEL" >/dev/null 2>&1; then
-            return 1
-        fi
+# Return 0 for loaded, 1 for confirmed absent, or 2 for an unknown state.
+query_service() {
+    local output status=0
+    output=$(/bin/launchctl print "system/$LABEL" 2>&1) || status=$?
+    if (( status == 0 )); then
+        return 0
     fi
+    if (( status == 113 )) || [[ $output == *"Could not find service \"$LABEL\" in domain for system"* ]]; then
+        return 1
+    fi
+    error "Could not query launchd service $LABEL (exit $status)."
+    if [[ -n $output ]]; then error "$output"; fi
+    return 2
+}
+
+wait_for_service_state() {
+    local expected=$1 state attempt
+    # bootout can return before launchd has finished stopping the process.
+    for (( attempt = 0; attempt <= 80; attempt++ )); do
+        state=0
+        query_service || state=$?
+        if (( state == expected )); then return 0; fi
+        if (( state == 2 )); then return 2; fi
+        if (( attempt < 80 )); then /bin/sleep 0.25 || return 2; fi
+    done
+    return 1
+}
+
+stop_service() {
+    local state=0 bootout_status=0 bootout_output= wait_status=0
+    query_service || state=$?
+    if (( state == 1 )); then return 0; fi
+    if (( state == 2 )); then return 1; fi
+
+    bootout_output=$(/bin/launchctl bootout "system/$LABEL" 2>&1) || bootout_status=$?
+    # A job can disappear between print and bootout. Confirm the resulting state.
+    wait_for_service_state 1 || wait_status=$?
+    if (( wait_status == 0 )); then return 0; fi
+    if (( bootout_status != 0 )); then
+        error "launchctl bootout failed for $LABEL (exit $bootout_status)."
+        if [[ -n $bootout_output ]]; then error "$bootout_output"; fi
+    fi
+    if (( wait_status == 1 )); then
+        error "Launchd still reports $LABEL loaded after waiting 20 seconds."
+    fi
+    return 1
 }
 
 start_service() {
-    /bin/launchctl bootstrap system "$PLIST" &&
-        /bin/launchctl print "system/$LABEL" >/dev/null 2>&1
+    local wait_status=0
+    /bin/launchctl bootstrap system "$PLIST" || return 1
+    wait_for_service_state 0 || wait_status=$?
+    if (( wait_status == 0 )); then return 0; fi
+    if (( wait_status == 1 )); then
+        error "Launchd did not report $LABEL loaded after waiting 20 seconds."
+    fi
+    return 1
 }
 
 install_payload() {
@@ -369,7 +414,7 @@ install_payload() {
 }
 
 finish_upgrade() {
-    local result=$1 rollback_failed=no file
+    local result=$1 rollback_failed=no file state=0
     trap - EXIT INT TERM
     if (( result != 0 )) && [[ $files_changed == yes ]]; then
         if stop_service; then
@@ -381,9 +426,11 @@ finish_upgrade() {
         fi
     fi
     if (( result != 0 )) && [[ $rollback_failed == no && $was_loaded == yes ]]; then
-        if ! /bin/launchctl print "system/$LABEL" >/dev/null 2>&1; then
-            start_service || rollback_failed=yes
-        fi
+        query_service || state=$?
+        case $state in
+            1) start_service || rollback_failed=yes ;;
+            2) rollback_failed=yes ;;
+        esac
     fi
     if [[ $rollback_failed == yes ]]; then
         error "The update could not restore the previous installation. Its backup is in $backup."
@@ -402,7 +449,7 @@ finish_upgrade() {
 upgrade_bridge() (
     local windows_option= windows_value= requested_backend= requested_ethernet= option value
     local previous_client previous_lan previous_backend previous_ethernet previous_ip saved_windows_mode=yes
-    local staging backup was_loaded=no files_changed=no pending_change=no printer_changed=no file
+    local staging backup was_loaded=no files_changed=no pending_change=no printer_changed=no file state=0
     local upgrade_files=(print-bridge install.sh service.sh config.sh)
     while (( $# )); do
         option=$1
@@ -475,9 +522,11 @@ upgrade_bridge() (
             die 'Could not stage the bridge configuration.'
     fi
 
-    if /bin/launchctl print "system/$LABEL" >/dev/null 2>&1; then
-        was_loaded=yes
-    fi
+    query_service || state=$?
+    case $state in
+        0) was_loaded=yes ;;
+        2) die 'Launchd service state is unknown. The installed bridge was kept.' ;;
+    esac
     for file in "${upgrade_files[@]}"; do
         if ! /usr/bin/cmp -s "$staging/$file" "$backup/$file"; then
             pending_change=yes
@@ -536,7 +585,7 @@ install_bridge() {
     needs_root
     if [[ -f $CONFIG && -x $BRIDGE_BIN && -f $PLIST ]]; then
         upgrade_bridge "$@"
-        return 0
+        return $?
     fi
     [[ ! -e $STATE_DIR && ! -L $STATE_DIR && ! -e $PLIST && ! -L $PLIST ]] ||
         die 'A bridge installation already has files on this Mac. Run uninstall before retrying.'

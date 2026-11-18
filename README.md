@@ -85,7 +85,7 @@ Discovery and diagnosis make no network configuration changes. To restrict RAW a
 
 Open the new installer and choose **Use the installed printer** to update the software while retaining the selected printer. The checkbox controls optional Windows RAW access. The Terminal command `sudo bash install.sh install` with no options preserves both printer and Windows settings. Selecting another printer is supported in place when the existing configuration has no custom route that would need to change.
 
-The update stops the old process and starts the replacement under the same single launchd label, `local.wifiprintbridge`. To verify the active service and see its configured command and PID, run `sudo launchctl print system/local.wifiprintbridge`. From the app’s bridge directory, `sudo bash install.sh status` also shows the current settings and recent service log.
+The update waits for macOS to unload the old service before it replaces the files and starts the replacement under the same launchd label, `local.wifiprintbridge`. To verify the active service and see its configured command and PID, run `sudo launchctl print system/local.wifiprintbridge`. From the app’s bridge directory, `sudo bash install.sh status` also shows the current settings and recent service log.
 
 To remove the service, run `sudo bash install.sh uninstall` from the app’s bridge directory. This stops the service and removes the printer route or Ethernet alias if the bridge added one.
 
