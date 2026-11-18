@@ -1,0 +1,29 @@
+{
+  NAME "Submit $format with Print-Job"
+  OPERATION Print-Job
+  GROUP operation-attributes-tag
+  ATTR charset attributes-charset utf-8
+  ATTR language attributes-natural-language en
+  ATTR uri printer-uri $uri
+  ATTR name requesting-user-name bridge-smoke
+  ATTR name job-name smoke-raster-job
+  ATTR mimeMediaType document-format $format
+  FILE $filename
+  STATUS successful-ok
+  STATUS successful-ok-ignored-or-substituted-attributes
+  EXPECT job-id OF-TYPE integer WITH-VALUE >0
+  EXPECT job-uri OF-TYPE uri WITH-HOSTNAME 127.0.0.1
+}
+{
+  NAME "Check that the $format job completed"
+  OPERATION Get-Job-Attributes
+  DELAY "0,1"
+  GROUP operation-attributes-tag
+  ATTR charset attributes-charset utf-8
+  ATTR language attributes-natural-language en
+  ATTR uri printer-uri $uri
+  ATTR integer job-id $job-id
+  ATTR name requesting-user-name bridge-smoke
+  STATUS successful-ok
+  EXPECT job-state OF-TYPE enum WITH-VALUE 9 REPEAT-NO-MATCH REPEAT-LIMIT 8
+}

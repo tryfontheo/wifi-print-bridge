@@ -1,0 +1,12 @@
+{
+  NAME "Follow the advertised job URI as the HTTP request resource"
+  OPERATION Get-Job-Attributes
+  GROUP operation-attributes-tag
+  ATTR charset attributes-charset utf-8
+  ATTR language attributes-natural-language en
+  ATTR uri job-uri $uri
+  ATTR name requesting-user-name bridge-smoke
+  STATUS successful-ok
+  EXPECT job-uri OF-TYPE uri WITH-VALUE $uri
+  EXPECT job-state OF-TYPE enum WITH-VALUE 9
+}
